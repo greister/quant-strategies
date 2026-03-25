@@ -49,10 +49,12 @@ LIMIT 20
 ├── sql/
 │   ├── create_independence_tables.sql    # 建表脚本（结果表 + 视图）
 │   ├── calc_independence_score.sql       # 核心计算逻辑（查询版）
-│   └── queries_independence_score.sql    # 常用查询示例
+│   ├── queries_independence_score.sql    # 常用查询示例
+│   └── backtest_independence_score.sql   # 回测 SQL
 ├── scripts/
 │   ├── calc_independence_score.sh                 # 批量计算脚本（基础版）
-│   └── calc_independence_score_margin_weighted.py # 融资加权版（CH+PG）
+│   ├── calc_independence_score_margin_weighted.py # 融资加权版（CH+PG）
+│   └── backtest_independence_score.py             # 历史回测脚本
 └── docs/
     └── plans/                            # 设计文档
 ```
@@ -113,3 +115,48 @@ export CH_PASSWORD=your_password
 | `raw_score` | 基础独立强度分数 |
 | `margin_weight` | 融资加权系数（1.0 表示无加权） |
 | `contra_count` | 逆势区间数量 |
+
+## 历史回测
+
+验证独立强度因子的历史表现。
+
+### 回测逻辑
+
+1. **信号生成**：选取独立强度分数 >= 阈值的股票作为买入信号
+2. **持有期**：买入后持有 N 天
+3. **收益计算**：计算持有期内的收益率、最大回撤等指标
+4. **统计分析**：胜率、平均收益、夏普比率等
+
+### 使用方法
+
+```bash
+# 基础回测（持有 5 天，阈值 3.0）
+./scripts/backtest_independence_score.py --start 2025-01-01 --end 2025-03-20
+
+# 调整参数
+./scripts/backtest_independence_score.py \
+    --start 2025-01-01 \
+    --end 2025-03-20 \
+    --threshold 5.0 \
+    --hold-days 10 \
+    --top-n 10
+```
+
+### 回测参数
+
+| 参数 | 说明 | 默认值 |
+|------|------|--------|
+| `--start` | 回测开始日期 | 必填 |
+| `--end` | 回测结束日期 | 必填 |
+| `--threshold` | 选股阈值（分数 >=） | 3.0 |
+| `--hold-days` | 持有天数 | 5 |
+| `--top-n` | 每日选股数量（Top N） | 不限 |
+
+### 回测报告输出
+
+- 总交易次数、胜率
+- 平均收益率、年化收益率
+- 最大单笔收益/亏损
+- 平均最大回撤
+- 夏普比率
+- 分板块表现统计
