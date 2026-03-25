@@ -84,14 +84,14 @@ independence_score AS (
 )
 
 SELECT
-    {trade_date:Date} as trade_date,
+    {trade_date:Date} as date,
     symbol,
-    sector_code,
-    independence_score,
-    total_intervals,
-    independence_ratio,
-    round(avg_contra_return, 4) as avg_contra_return,
-    round(max_excess_return, 4) as max_excess_return
+    sector_code as sector,
+    independence_score as score,
+    independence_score as raw_score,
+    1.0 as margin_weight,
+    count(*) as sector_stock_count,
+    independence_score as contra_count
 FROM independence_score
 WHERE independence_score > 0
 ORDER BY independence_score DESC, independence_ratio DESC
@@ -102,17 +102,14 @@ echo "Done. Top 10 scores:"
 # 查询并显示当日 Top 10 结果
 clickhouse-client --database="$DB_NAME" --param_trade_date="$DATE" -q "
 SELECT
-    trade_date,
+    date,
     symbol,
-    sector_code,
-    independence_score,
-    total_intervals,
-    independence_ratio,
-    avg_contra_return,
-    max_excess_return
+    sector,
+    score,
+    contra_count
 FROM independence_score_daily
-WHERE trade_date = {trade_date:Date}
-ORDER BY independence_score DESC, independence_ratio DESC
+WHERE date = {trade_date:Date}
+ORDER BY score DESC
 LIMIT 10
 FORMAT PrettyCompact
 "
