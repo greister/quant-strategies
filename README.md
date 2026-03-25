@@ -51,7 +51,8 @@ LIMIT 20
 │   ├── calc_independence_score.sql       # 核心计算逻辑（查询版）
 │   └── queries_independence_score.sql    # 常用查询示例
 ├── scripts/
-│   └── calc_independence_score.sh        # 批量计算脚本
+│   ├── calc_independence_score.sh                 # 批量计算脚本（基础版）
+│   └── calc_independence_score_margin_weighted.py # 融资加权版（CH+PG）
 └── docs/
     └── plans/                            # 设计文档
 ```
@@ -67,3 +68,48 @@ LIMIT 20
 | `excess_return_threshold` | 1% | 超额收益阈值，高于此值视为显著跑赢板块 |
 
 修改阈值后重新执行计算脚本即可生效。
+
+## 融资余额加权版本
+
+除了基础版本，还支持结合 PostgreSQL 融资融券数据进行加权计算。
+
+### 加权逻辑
+
+- **基础分数**：来自 5 分钟 K 线的独立强度分数
+- **融资加权**：融资余额增加的股票获得额外加分
+- **加权公式**：`weighted_score = raw_score * (1 + change_rate * weight_factor)`
+
+### 使用方法
+
+```bash
+# 安装依赖
+pip install psycopg2-binary clickhouse-driver
+
+# 设置环境变量
+export PG_HOST=localhost
+export PG_PORT=5432
+export PG_DB=quantdb
+export PG_USER=postgres
+export PG_PASSWORD=your_password
+
+export CH_HOST=localhost
+export CH_PORT=9000
+export CH_DB=tdx2db_rust
+export CH_USER=default
+export CH_PASSWORD=your_password
+
+# 运行融资加权版
+./scripts/calc_independence_score_margin_weighted.py 2025-03-20
+
+# 调整加权系数（默认 0.1）
+./scripts/calc_independence_score_margin_weighted.py 2025-03-20 --weight-factor 0.2
+```
+
+### 输出字段说明
+
+| 字段 | 说明 |
+|------|------|
+| `score` | 加权后的最终分数 |
+| `raw_score` | 基础独立强度分数 |
+| `margin_weight` | 融资加权系数（1.0 表示无加权） |
+| `contra_count` | 逆势区间数量 |
