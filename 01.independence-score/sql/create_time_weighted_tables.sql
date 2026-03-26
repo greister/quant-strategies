@@ -17,7 +17,7 @@ ORDER BY config_name;
 -- 结果表：存储时间加权因子计算结果
 CREATE TABLE IF NOT EXISTS independence_score_time_weighted (
     date Date,
-    code String,
+    symbol String,
     name String,
     sector String,
     
@@ -41,14 +41,14 @@ CREATE TABLE IF NOT EXISTS independence_score_time_weighted (
     calculated_at DateTime DEFAULT now()
 ) ENGINE = ReplacingMergeTree(calculated_at)
 PARTITION BY toYYYYMM(date)
-ORDER BY (date, code)
+ORDER BY (date, symbol, config_name)
 TTL date + INTERVAL 2 YEAR;
 
 -- 便捷查询视图
 CREATE OR REPLACE VIEW v_independence_time_weighted_leaders AS
 SELECT 
     date,
-    code,
+    symbol,
     name,
     sector,
     raw_score,
@@ -60,5 +60,5 @@ SELECT
         WHEN raw_score > 0 THEN (weighted_score - raw_score) / raw_score 
         ELSE 0 
     END AS weight_adjustment_rate
-FROM independence_score_time_weighted
+FROM independence_score_time_weighted FINAL
 WHERE date = (SELECT max(date) FROM independence_score_time_weighted);
