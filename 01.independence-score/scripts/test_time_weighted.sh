@@ -45,7 +45,7 @@ echo
 echo "5. 验证权重调整效果..."
 clickhouse-client --database=tdx2db_rust -q "
     SELECT 
-        code,
+        symbol,
         name,
         raw_score,
         weighted_score,

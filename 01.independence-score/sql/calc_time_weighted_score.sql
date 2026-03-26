@@ -18,7 +18,7 @@ config AS (
 -- 计算各股票各区间收益
 stock_returns AS (
     SELECT
-        code,
+        symbol,
         name,
         sector,
         datetime,
@@ -57,7 +57,7 @@ sector_returns AS (
 -- 识别逆势区间（复用原始因子逻辑）
 contra_intervals AS (
     SELECT
-        s.code,
+        s.symbol,
         s.name,
         s.sector,
         s.datetime,
@@ -102,7 +102,7 @@ INSERT INTO independence_score_time_weighted (
 )
 SELECT
     {trade_date:Date} AS date,
-    code AS symbol,
+    symbol,
     name,
     sector,
     toFloat32(raw_score) AS raw_score,
