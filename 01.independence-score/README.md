@@ -121,6 +121,75 @@ export CH_PASSWORD=your_password
 | `margin_weight` | 融资加权系数（1.0 表示无加权） |
 | `contra_count` | 逆势区间数量 |
 
+## 时间加权因子版本
+
+在基础独立强度因子之上，引入时间衰减权重机制，不同时段的逆势表现赋予不同权重。
+
+### 核心逻辑
+
+- **归一化权重**：全天 48 个 5 分钟区间权重之和为 1.0
+- **时间导向**：早盘、午盘、尾盘可配置不同权重
+- **预设模式**：尾盘关注型、趋势市、震荡市等多种模式
+
+### 预设模式
+
+| 模式 | 说明 | 适用场景 |
+|------|------|----------|
+| `evening_focus` | 尾盘关注型（默认）| 关注次日开盘预期 |
+| `morning_focus` | 早盘关注型 | 把握开盘情绪 |
+| `conservative` | 保守型（均匀分布）| 与原始因子等价 |
+| `trending_market` | 趋势市 | 早盘权重较高 |
+| `ranging_market` | 震荡市 | 尾盘权重较高 |
+| `rotating_market` | 轮动市 | 午盘权重较高 |
+
+### 使用方法
+
+```bash
+# 初始化（首次使用）
+./scripts/calc_time_weighted_score.py --init
+
+# 使用默认预设计算
+./scripts/calc_time_weighted_score.py 2025-03-20
+
+# 使用指定预设
+./scripts/calc_time_weighted_score.py 2025-03-20 --preset trending_market
+
+# 查看所有预设
+./scripts/calc_time_weighted_score.py --list-presets
+
+# 自定义权重（48 个浮点数，逗号分隔）
+./scripts/calc_time_weighted_score.py 2025-03-20 \
+    --custom-weights "0.02,0.02,..." \
+    --custom-name "my_config"
+```
+
+### 查看结果
+
+```bash
+# 查看某日加权因子排名
+clickhouse-client --database=tdx2db_rust -q "
+    SELECT * FROM independence_score_time_weighted
+    WHERE date = '2025-03-20' AND config_name = 'evening_focus'
+    ORDER BY weighted_score DESC
+    LIMIT 20
+"
+
+# 对比不同配置的选股差异
+clickhouse-client --database=tdx2db_rust -q "
+    SELECT 
+        a.symbol, a.name,
+        a.weighted_score as evening_score,
+        b.weighted_score as morning_score
+    FROM independence_score_time_weighted a
+    JOIN independence_score_time_weighted b ON a.symbol = b.symbol AND a.date = b.date
+    WHERE a.date = '2025-03-20'
+      AND a.config_name = 'evening_focus'
+      AND b.config_name = 'morning_focus'
+    ORDER BY evening_score DESC
+    LIMIT 20
+"
+```
+
 ## 历史回测
 
 验证独立强度因子的历史表现。
