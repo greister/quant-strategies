@@ -16,7 +16,17 @@
 │   ├── scripts/            # 计算脚本
 │   └── docs/               # 策略文档
 │
-└── 02.xxx/                 # 未来策略
+├── 02.momentum-factor/     # 动量因子策略
+│   ├── sql/                # SQL 脚本
+│   ├── scripts/            # 计算脚本
+│   └── docs/               # 策略文档
+│
+├── 03.low-beta-hybrid/     # 低贝塔混合策略 ⭐ NEW
+│   ├── sql/                # SQL 脚本
+│   ├── scripts/            # 计算脚本（含三策略汇总）
+│   └── docs/               # 策略文档
+│
+└── 04.xxx/                 # 未来策略
 ```
 
 ## 快速开始
@@ -37,7 +47,18 @@ export PG_HOST=localhost PG_PORT=5432 PG_DB=quantdb
 ```bash
 # 独立强度策略
 cd 01.independence-score
-./scripts/calc_independence_score.sh 2025-03-20
+./scripts/calc_independence_score.sh 2026-03-20
+
+# 动量因子策略
+cd 02.momentum-factor
+./scripts/calc_momentum.py 2026-03-20
+
+# 低贝塔混合策略
+cd 03.low-beta-hybrid
+./scripts/calc_low_beta_hybrid.py 2026-03-20 --output-json
+
+# 三策略汇总（找出重合信号）
+./scripts/combine_signals.py 2026-03-20 --min-overlap 2
 ```
 
 ## 策略列表
@@ -45,6 +66,8 @@ cd 01.independence-score
 | 编号 | 策略名称 | 说明 | 状态 |
 |------|----------|------|------|
 | 01 | independence-score | 分时独立强度因子 | ✅ 已完成 |
+| 02 | momentum-factor | 动量因子策略 | 🚧 开发中 |
+| 03 | low-beta-hybrid | 低贝塔混合策略（防御+逆势） | ✅ 已实现 |
 
 ## 开发规范
 

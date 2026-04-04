@@ -66,6 +66,43 @@
   - 使用小写字母和连字符
   - 示例：`01.independence-score`, `02.momentum-factor`
 
+### ⚠️ 根目录文件限制（重要）
+
+**项目根目录 (`40.strategies/`) 不应保留任何策略相关文件。**
+
+所有策略文件（脚本、SQL、配置等）必须放在对应的策略子目录中 (`NN.strategy-name/`)。
+
+| 位置 | 允许内容 | 禁止内容 |
+|------|---------|---------|
+| **根目录** | `README.md`, `AGENTS.md`, `.gitignore` | 策略脚本、SQL文件、策略配置 |
+| **策略目录** | 所有策略相关文件 | - |
+| **00.shared/** | 跨策略共享的工具、配置、脚本 | 策略-specific的业务逻辑 |
+
+**正确的文件位置示例：**
+```bash
+# ✅ 正确：策略脚本放在策略目录
+01.independence-score/scripts/calc_independence_score.sh
+03.low-beta-hybrid/scripts/calc_low_beta_hybrid.py
+
+# ❌ 错误：不要把策略文件放在根目录
+./calc_independence_score.sh           # 禁止！
+./run-all-strategies.sh                # 禁止！移到 00.shared/scripts/
+./some-strategy-config.yaml            # 禁止！
+```
+
+### 策略子目录结构
+
+每个策略目录 (`NN.strategy-name/`) 必须包含以下子目录：
+
+```
+NN.strategy-name/
+├── sql/              # SQL脚本（建表、计算逻辑、查询）
+├── scripts/          # 可执行脚本（Python、Bash）
+├── docs/             # 策略文档
+│   └── plans/        # 设计文档、计划
+└── README.md         # 策略说明
+```
+
 ---
 
 ## 环境配置
@@ -78,14 +115,14 @@ export CH_HOST=localhost
 export CH_PORT=9000
 export CH_DB=tdx2db_rust
 export CH_USER=default
-export CH_PASSWORD=your_password
+export CH_PASSWORD=tdx2db
 
 # PostgreSQL 配置
 export PG_HOST=localhost
 export PG_PORT=5432
 export PG_DB=quantdb
 export PG_USER=postgres
-export PG_PASSWORD=your_password
+export PG_PASSWORD=postgres
 ```
 
 或使用共享配置：
@@ -207,9 +244,57 @@ cd 01.independence-score
 
 ### 文档命名规范
 
+#### 通用文档
 - **报告文件**：`YYYY-MM-DD_报告名称.md`
 - **计划文档**：`YYYY-MM-DD-计划名称.md`
 - **设计文档**：`YYYY-MM-DD-策略名称-design.md`
+
+#### 报告输出文件（重要）
+
+所有**策略执行报告**（生成到 `/tmp/strategy-output/` 并推送到 Obsidian Vault 的文件）**必须**以日期为前缀：
+
+```
+YYYY-MM-DD_报告名称.md
+```
+
+**正确示例：**
+```bash
+# ✅ 正确：日期前缀 + 描述性名称
+2026-03-27_多日期对比报告-独立强度因子.md
+2026-03-20_每日选股报告-综合版.md
+2026-03-26_策略回测报告.md
+```
+
+**错误示例：**
+```bash
+# ❌ 错误：缺少日期前缀
+多日期对比报告-独立强度因子.md
+策略执行结果.md
+
+# ❌ 错误：日期格式不规范
+20260327_报告.md          # 缺少连字符
+2026/03/27_报告.md        # 使用斜杠
+```
+
+**规则说明：**
+1. **日期格式**：必须使用 `YYYY-MM-DD`（ISO 8601 日期格式）
+2. **分隔符**：日期与报告名称之间使用下划线 `_`
+3. **报告类型标识**：报告名称应包含策略类型（如：独立强度因子、低贝塔混合、综合信号）
+4. **多日期对比**：对比报告使用报告生成日期作为前缀，而非数据日期
+
+**生成报告时的代码示例：**
+```python
+from datetime import datetime
+
+# 生成报告文件名
+report_date = datetime.now().strftime('%Y-%m-%d')
+filename = f"{report_date}_多日期对比报告-独立强度因子.md"
+# 结果: 2026-03-27_多日期对比报告-独立强度因子.md
+
+# 单日报告使用数据日期
+filename = f"{trade_date}_每日选股报告-{strategy_name}.md"
+# 结果: 2026-03-20_每日选股报告-独立强度因子.md
+```
 
 ---
 
