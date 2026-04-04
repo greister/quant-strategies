@@ -8,9 +8,9 @@ stock_info AS (
         s.symbol,
         g.name AS stock_name,
         i.block_name AS industry_name
-    FROM stock_industry_mapping s
-    LEFT JOIN gtja_stock_names g ON s.symbol = g.symbol
-    LEFT JOIN gtja_industry_list i ON substring(s.industry_code, 3) = i.block_code
+    FROM v_stock_industry_mapping s
+    LEFT JOIN v_gtja_stock_names g ON s.symbol = g.symbol
+    LEFT JOIN v_gtja_industry_list i ON substring(s.industry_code, 3) = i.block_code
     WHERE i.block_name != ''
 ),
 
@@ -20,7 +20,7 @@ market_returns AS (
         date,
         close,
         (close - lag(close) OVER (ORDER BY date)) / lag(close) OVER (ORDER BY date) AS market_return
-    FROM raw_index_daily
+    FROM v_raw_index_daily
     WHERE symbol = '000300.SH'
       AND date BETWEEN {trade_date:Date} - INTERVAL 120 DAY AND {trade_date:Date}
 ),
@@ -79,7 +79,7 @@ avg_20d AS (
 -- 获取市场基准20日均价
 market_avg_20d AS (
     SELECT avg(close) AS avg_price_20d
-    FROM raw_index_daily
+    FROM v_raw_index_daily
     WHERE symbol = '000300.SH'
       AND date BETWEEN {trade_date:Date} - INTERVAL 20 DAY AND {trade_date:Date}
 ),
@@ -87,7 +87,7 @@ market_avg_20d AS (
 -- 获取市场当前价格
 market_current AS (
     SELECT close AS price_current
-    FROM raw_index_daily
+    FROM v_raw_index_daily
     WHERE symbol = '000300.SH'
       AND date = {trade_date:Date}
 ),
@@ -106,7 +106,7 @@ returns_20d AS (
 market_return_20d AS (
     SELECT
         (close - argMin(open, date)) / argMin(open, date) * 100 AS return_20d
-    FROM raw_index_daily
+    FROM v_raw_index_daily
     WHERE symbol = '000300.SH'
       AND date BETWEEN {trade_date:Date} - INTERVAL 20 DAY AND {trade_date:Date}
 ),

@@ -3,14 +3,15 @@
 
 WITH
 -- 获取股票名称和行业映射
+-- 使用适配视图兼容 tdx2db-rust 的表结构
 stock_info AS (
     SELECT 
         s.symbol,
         g.name AS stock_name,
         i.block_name AS industry_name
-    FROM stock_industry_mapping s
-    LEFT JOIN gtja_stock_names g ON s.symbol = g.symbol
-    LEFT JOIN gtja_industry_list i ON substring(s.industry_code, 3) = i.block_code
+    FROM v_stock_industry_mapping s
+    LEFT JOIN v_gtja_stock_names g ON s.symbol = g.symbol
+    LEFT JOIN v_gtja_industry_list i ON substring(s.industry_code, 3) = i.block_code
     WHERE i.block_name != ''
 ),
 

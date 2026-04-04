@@ -28,6 +28,7 @@ stock_returns AS (
 ),
 
 -- 获取股票板块归属
+-- 使用 v_stock_sectors 视图兼容 tdx2db-rust 的 stock_sectors 表结构
 stock_with_sector AS (
     SELECT
         sr.symbol,
@@ -35,7 +36,7 @@ stock_with_sector AS (
         sr.stock_return,
         ss.sector_code
     FROM stock_returns sr
-    INNER JOIN stock_sectors ss ON sr.symbol = ss.symbol
+    INNER JOIN v_stock_sectors ss ON sr.symbol = ss.symbol
     WHERE sr.stock_return IS NOT NULL
 ),
 

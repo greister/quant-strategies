@@ -25,8 +25,8 @@ stock_daily AS (
     FROM raw_stocks_daily d
     JOIN (
         SELECT s.symbol, i.block_name AS industry_name
-        FROM stock_industry_mapping s
-        LEFT JOIN gtja_industry_list i ON substring(s.industry_code, 3) = i.block_code
+        FROM v_stock_industry_mapping s
+        LEFT JOIN v_gtja_industry_list i ON substring(s.industry_code, 3) = i.block_code
         WHERE i.block_name != ''
     ) s ON d.symbol = s.symbol
     WHERE d.date BETWEEN {trade_date:Date} - INTERVAL 20 DAY AND {trade_date:Date}
@@ -81,7 +81,7 @@ ORDER BY beta_500 ASC, anti_fall_days DESC;
 -- 更新股票名称
 ALTER TABLE low_beta_pool_daily
     UPDATE name = g.name
-    FROM gtja_stock_names g
+    FROM v_gtja_stock_names g
     WHERE low_beta_pool_daily.symbol = g.symbol
       AND low_beta_pool_daily.date = {trade_date:Date};
 
@@ -117,9 +117,9 @@ stock_info AS (
         g.name AS stock_name,
         i.block_name AS industry_name
     FROM low_beta_pool l
-    JOIN stock_industry_mapping s ON l.symbol = s.symbol
-    LEFT JOIN gtja_stock_names g ON s.symbol = g.symbol
-    LEFT JOIN gtja_industry_list i ON substring(s.industry_code, 3) = i.block_code
+    JOIN v_stock_industry_mapping s ON l.symbol = s.symbol
+    LEFT JOIN v_gtja_stock_names g ON s.symbol = g.symbol
+    LEFT JOIN v_gtja_industry_list i ON substring(s.industry_code, 3) = i.block_code
     WHERE i.block_name != ''
 ),
 

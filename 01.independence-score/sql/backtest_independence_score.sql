@@ -109,7 +109,7 @@ sector_returns AS (
             sector,
             avg((close - open) / open * 100) as sector_return
         FROM raw_stocks_daily d
-        JOIN stock_sectors ss ON d.symbol = ss.symbol
+        JOIN v_stock_sectors ss ON d.symbol = ss.symbol
         GROUP BY date, sector
     ) sr ON s.sector = sr.sector
         AND sr.date > s.signal_date

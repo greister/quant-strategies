@@ -195,7 +195,7 @@ class MarginWeightedIndependenceScore:
                         sr.stock_return,
                         ss.sector_code
                     FROM stock_returns sr
-                    INNER JOIN stock_sectors ss ON sr.symbol = ss.symbol
+                    INNER JOIN v_stock_sectors ss ON sr.symbol = ss.symbol
                     WHERE sr.stock_return IS NOT NULL
                 ),
                 sector_returns AS (
