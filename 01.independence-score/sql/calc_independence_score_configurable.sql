@@ -1,18 +1,15 @@
-#!/bin/bash
-set -e
+-- 可配置阈值的分时独立强度因子计算
+-- 参数:
+--   {trade_date:Date}          - 交易日期
+--   {sector_threshold:Float64} - 板块下跌阈值，默认-0.5 (%)
+--   {stock_threshold:Float64}  - 个股收益阈值，默认0 (%)
+--   {excess_threshold:Float64} - 超额收益阈值，默认1 (%)
+--
+-- 推荐阈值组合:
+--   严格模式: sector=-0.5, stock=0,   excess=1.0  (精选独立龙头)
+--   中等模式: sector=-0.3, stock=-0.3, excess=0.5  (平衡质量与数量)
+--   宽松模式: sector=-0.1, stock=0,   excess=0.3  (广泛捕捉信号)
 
-# 独立强度因子批量计算脚本
-# 计算股票在板块下跌时的逆势表现得分
-
-# 变量定义
-DB_NAME="${CLICKHOUSE_DB:-tdx2db_rust}"
-DATE="${1:-$(date +%Y-%m-%d)}"
-
-echo "Calculating independence score for date: $DATE"
-
-# 执行 INSERT INTO independence_score_daily
-clickhouse-client --database="$DB_NAME" --param_trade_date="$DATE" -q "
-INSERT INTO independence_score_daily
 WITH
 -- 计算个股5分钟收益率
 stock_returns AS (
@@ -43,9 +40,10 @@ stock_with_sector AS (
     FROM stock_returns sr
     INNER JOIN v_stock_sectors ss ON sr.symbol = ss.symbol
     WHERE sr.stock_return IS NOT NULL
+      AND abs(sr.stock_return) < 50  -- 剔除异常收益率
 ),
 
--- 计算板块5分钟收益率（板块内股票平均）
+-- 计算板块5分钟收益率
 sector_returns AS (
     SELECT
         sector_code,
@@ -64,9 +62,13 @@ combined_data AS (
         sws.stock_return,
         sr.sector_return,
         sws.stock_return - sr.sector_return as excess_return,
-        sr.sector_return < -0.5 AND (sws.stock_return > 0 OR (sws.stock_return - sr.sector_return) > 1) as is_contra_move
+        -- 可配置的逆势判断条件
+        sr.sector_return < {sector_threshold:Float64} 
+            AND (sws.stock_return > {stock_threshold:Float64} 
+                 OR (sws.stock_return - sr.sector_return) > {excess_threshold:Float64}) as is_contra_move
     FROM stock_with_sector sws
     INNER JOIN sector_returns sr ON sws.sector_code = sr.sector_code AND sws.datetime = sr.datetime
+    WHERE abs(sr.sector_return) < 50  -- 剔除异常板块收益
 ),
 
 -- 统计每个股票的逆势区间数量
@@ -84,32 +86,14 @@ independence_score AS (
 )
 
 SELECT
-    {trade_date:Date} as date,
+    {trade_date:Date} as trade_date,
     symbol,
-    sector_code as sector,
-    independence_score as score,
-    independence_score as raw_score,
-    1.0 as margin_weight,
-    count(*) as sector_stock_count,
-    independence_score as contra_count
+    sector_code,
+    independence_score,
+    total_intervals,
+    independence_ratio,
+    round(avg_contra_return, 4) as avg_contra_return,
+    round(max_excess_return, 4) as max_excess_return
 FROM independence_score
 WHERE independence_score > 0
 ORDER BY independence_score DESC, independence_ratio DESC
-"
-
-echo "Done. Top 10 scores:"
-
-# 查询并显示当日 Top 10 结果
-clickhouse-client --database="$DB_NAME" --param_trade_date="$DATE" -q "
-SELECT
-    date,
-    symbol,
-    sector,
-    score,
-    contra_count
-FROM independence_score_daily
-WHERE date = {trade_date:Date}
-ORDER BY score DESC
-LIMIT 10
-FORMAT PrettyCompact
-"
