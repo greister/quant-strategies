@@ -11,7 +11,7 @@ DATE="${1:-$(date +%Y-%m-%d)}"
 echo "Calculating independence score for date: $DATE"
 
 # 执行 INSERT INTO independence_score_daily
-clickhouse-client --database="$DB_NAME" --param_trade_date="$DATE" -q "
+clickhouse-client --password=tdx2db --database="$DB_NAME" --param_trade_date="$DATE" -q "
 INSERT INTO independence_score_daily
 WITH
 -- 计算个股5分钟收益率
@@ -100,7 +100,7 @@ ORDER BY independence_score DESC, independence_ratio DESC
 echo "Done. Top 10 scores:"
 
 # 查询并显示当日 Top 10 结果
-clickhouse-client --database="$DB_NAME" --param_trade_date="$DATE" -q "
+clickhouse-client --password=tdx2db --database="$DB_NAME" --param_trade_date="$DATE" -q "
 SELECT
     date,
     symbol,
