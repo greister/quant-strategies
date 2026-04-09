@@ -95,18 +95,18 @@ def markdown_to_sy(md_content: str, title: str) -> dict:
 def create_siyuan_doc(box_id: str, path: str, title: str, md_content: str) -> bool:
     """
     通过思源笔记 API 创建文档
+    使用 createDocWithMd API 直接传入 Markdown 内容
     """
     try:
-        # 1. 创建文档
+        # 使用 createDocWithMd API
         create_payload = {
             "notebook": box_id,
             "path": path,
-            "title": title,
-            "content": md_content  # 思源支持直接传入 Markdown
+            "markdown": md_content  # 直接传入 Markdown 内容
         }
         
         resp = requests.post(
-            f"{SIYUAN_API}/api/filetree/createDoc",
+            f"{SIYUAN_API}/api/filetree/createDocWithMd",
             json=create_payload,
             timeout=10
         )
@@ -115,7 +115,19 @@ def create_siyuan_doc(box_id: str, path: str, title: str, md_content: str) -> bo
             result = resp.json()
             if result.get("code") == 0:
                 doc_id = result["data"]
-                print(f"✅ 文档已创建: {title} (ID: {doc_id})")
+                # 重命名文档（设置标题）
+                if doc_id:
+                    rename_payload = {
+                        "notebook": box_id,
+                        "path": path + ".sy",
+                        "title": title
+                    }
+                    requests.post(
+                        f"{SIYUAN_API}/api/filetree/renameDoc",
+                        json=rename_payload,
+                        timeout=5
+                    )
+                print(f"✅ 文档已创建: {title}")
                 return True
             else:
                 print(f"⚠️ API 返回错误: {result.get('msg')}")
