@@ -169,12 +169,26 @@ def main():
     
     report = generate_report(trade_date)
     
-    # 输出到文件
+    # 输出到本地 results 目录
     output_file = Path(__file__).parent.parent / 'results' / f'{trade_date}_report.md'
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(report)
     
-    print(f"报告已生成: {output_file}")
+    print(f"✅ 报告已生成: {output_file}")
+    
+    # 同步到 Obsidian Vault
+    vault_dir = Path('/mnt/d/obsidian/OrbitOS-vault')
+    if vault_dir.exists():
+        vault_target_dir = vault_dir / '30_Research' / '量化分析' / '策略执行结果' / '01-独立强度因子'
+        vault_target_dir.mkdir(parents=True, exist_ok=True)
+        
+        vault_file = vault_target_dir / f'{trade_date}_每日选股报告-综合版.md'
+        with open(vault_file, 'w', encoding='utf-8') as f:
+            f.write(report)
+        print(f"✅ 报告已同步到 Obsidian Vault: {vault_file}")
+    else:
+        print(f"⚠️ Obsidian Vault 路径不存在: {vault_dir}")
+    
     print(report)
 
 
