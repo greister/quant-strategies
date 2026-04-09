@@ -52,14 +52,21 @@ LIMIT 20
 ```
 .
 ├── sql/
-│   ├── create_independence_tables.sql    # 建表脚本（结果表 + 视图）
-│   ├── calc_independence_score.sql       # 核心计算逻辑（查询版）
-│   ├── queries_independence_score.sql    # 常用查询示例
-│   └── backtest_independence_score.sql   # 回测 SQL
+│   ├── create_independence_tables.sql     # 建表脚本（结果表 + 视图）
+│   ├── calc_independence_score.sql        # 核心计算逻辑（查询版）
+│   ├── calc_independence_score_v2.sql     # V2改进版（成交量加权+波动率调整）
+│   ├── queries_independence_score.sql     # 常用查询示例
+│   └── backtest_independence_score.sql    # 回测 SQL
 ├── scripts/
-│   ├── calc_independence_score.sh                 # 批量计算脚本（基础版）
-│   ├── calc_independence_score_margin_weighted.py # 融资加权版（CH+PG）
-│   └── backtest_independence_score.py             # 历史回测脚本
+│   ├── calc_independence_score.sh                  # 批量计算脚本（基础版）
+│   ├── calc_independence_score_v2.sh               # V2改进版执行脚本
+│   ├── calc_independence_score_margin_weighted.py  # 融资加权版（CH+PG）
+│   ├── calc_time_weighted_score.py                 # 时间加权版
+│   ├── run_all_strategies.sh                       # 并行运行所有策略
+│   └── backtest_independence_score.py              # 历史回测脚本
+├── results/
+│   ├── backtest_report_20250409.md      # Kimi生成的回测报告
+│   └── *.json                           # 策略执行结果
 └── docs/
     └── plans/                            # 设计文档
 ```
@@ -189,6 +196,93 @@ clickhouse-client --database=tdx2db_rust -q "
     LIMIT 20
 "
 ```
+
+## V2 改进版（推荐）
+
+基于 Kimi AI 分析生成的改进版本，引入成交量加权和波动率调整机制。
+
+### V2 核心改进
+
+| 改进点 | 说明 | 效果 |
+|--------|------|------|
+| **成交量加权** | 高成交量区间的逆势表现权重更高 | 识别真正有资金参与的逆势股 |
+| **波动率调整** | 根据个股波动率动态调整得分 | 低波动股票同样表现得分更高 |
+| **阈值优化** | 根据回测将阈值从 0.5 调整到 1.0 | 夏普比率从 -0.25 提升到 0.17 |
+
+### 回测表现
+
+根据 `results/backtest_report_20250409.md`：
+
+| 阈值 | 信号数 | 胜率 | 夏普比率 | 评价 |
+|------|--------|------|----------|------|
+| 0.5 | 1,435 | 35.68% | -0.25 | ❌ 负收益 |
+| **1.0** | **122** | - | **0.17** | ✅ **正收益** |
+
+**结论**：使用 1.0 阈值时，虽然信号数量减少，但风险调整后收益转正。
+
+### 使用方法
+
+```bash
+# 单独运行 V2 版本（默认阈值 1.0，Top 20）
+./scripts/calc_independence_score_v2.sh 2026-04-09
+
+# 自定义参数
+./scripts/calc_independence_score_v2.sh 2026-04-09 1.0 20
+# 参数说明: 日期 阈值 TopN
+
+# 运行所有策略（包含 V2）
+./scripts/run_all_strategies.sh 2026-04-09
+```
+
+### V2 输出字段
+
+| 字段 | 说明 |
+|------|------|
+| `independence_score_v2` | 综合独立强度得分（主指标） |
+| `volume_weighted_score` | 成交量加权得分 |
+| `volatility_adjusted_score` | 波动率调整得分 |
+| `volatility_daily` | 日波动率(%) |
+| `base_score` | 基础逆势区间数 |
+| `independence_ratio` | 独立强度比例(%) |
+
+### 数据表
+
+V2 结果保存到 `independence_score_v2_daily` 表：
+
+```bash
+# 查看 V2 结果
+clickhouse-client --database=tdx2db_rust -q "
+    SELECT 
+        symbol,
+        sector_code,
+        independence_score_v2,
+        volatility_daily
+    FROM independence_score_v2_daily
+    WHERE trade_date = '2026-04-09'
+    ORDER BY independence_score_v2 DESC
+    LIMIT 20
+"
+```
+
+## 并行执行所有策略
+
+使用 `run_all_strategies.sh` 同时运行 7 个策略版本：
+
+```bash
+# 运行全部策略
+./scripts/run_all_strategies.sh [日期]
+
+# 输出
+🔵 策略1: 基础版
+green 策略2: 时间加权-尾盘关注型
+🟡 策略3: 时间加权-早盘关注型
+🟠 策略4: 时间加权-趋势市
+🟣 策略5: 时间加权-保守型
+🔴 策略6: 融资余额加权（如有数据）
+🟣 策略7: V2改进版（成交量加权+波动率调整）
+```
+
+结果自动导出到 `results/` 目录，并同步到 Obsidian Vault。
 
 ## 历史回测
 

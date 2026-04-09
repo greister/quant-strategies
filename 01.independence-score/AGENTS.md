@@ -26,6 +26,7 @@ python3 ./scripts/generate_report.py [YYYY-MM-DD]
 | 趋势市 | 早盘权重较高 | `independence_score_time_weighted` |
 | 保守型 | 全天均匀加权 | `independence_score_time_weighted` |
 | 融资加权版 | 结合融资余额变化 | `independence_score_daily` |
+| **V2改进版** | 成交量加权+波动率调整 | `independence_score_v2_daily` |
 
 ### 并行执行原理
 

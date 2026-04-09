@@ -38,8 +38,14 @@ clickhouse-client --database=tdx2db_rust < sql/create_independence_tables.sql
 # Basic calculation for a specific date
 ./scripts/calc_independence_score.sh 2025-03-20
 
+# V2 Improved version (Volume-weighted + Volatility-adjusted)
+./scripts/calc_independence_score_v2.sh 2026-04-09 1.0 20
+
 # Margin-weighted calculation
 ./scripts/calc_independence_score_margin_weighted.py 2025-03-20 --weight-factor 0.1
+
+# Run all strategies in parallel (includes V2)
+./scripts/run_all_strategies.sh 2026-04-09
 
 # Backtesting
 ./scripts/backtest_independence_score.py --start 2025-01-01 --end 2025-03-20 --threshold 3.0 --hold-days 5
@@ -74,13 +80,16 @@ clickhouse-client --database=tdx2db_rust -q "
 
 **SQL Layer (`sql/`):**
 - `calc_independence_score.sql` - Core calculation using ClickHouse window functions (`lagInFrame`, `countIf`)
+- `calc_independence_score_v2.sql` - V2 improved version with volume-weighting and volatility adjustment
 - `create_independence_tables.sql` - Creates `independence_score_daily` table (ReplacingMergeTree) and `v_independence_leaders` view
 - `queries_independence_score.sql` - Common query patterns
 - `backtest_independence_score.sql` - SQL-based backtesting framework
 
 **Script Layer (`scripts/`):**
 - `calc_independence_score.sh` - Bash wrapper for ClickHouse SQL execution
+- `calc_independence_score_v2.sh` - V2 version executor with optimized threshold (1.0)
 - `calc_independence_score_margin_weighted.py` - Python integration fetching margin data from PostgreSQL and computing weighted scores
+- `run_all_strategies.sh` - Parallel execution of all 7 strategy variants
 - `backtest_independence_score.py` - Backtesting framework with performance metrics (win rate, Sharpe ratio, max drawdown)
 
 ### Key Parameters (Adjustable)
