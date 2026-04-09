@@ -140,7 +140,7 @@ run_strategy_6() {
     local start_time=$(date +%s)
     
     # 检查是否有融资数据
-    local margin_count=$(psql "postgresql://$PG_USER:$PG_PASSWORD@$PG_HOST:$PG_PORT/$PG_DB" \
+    local margin_count=$(psql "postgresql://$PG_USER:***@$PG_HOST:$PG_PORT/$PG_DB" \
         -t -c "SELECT count(*) FROM margin_trading_detail_combined WHERE trade_date = '$TRADE_DATE'" 2>/dev/null | xargs)
     
     if [ -z "$margin_count" ] || [ "$margin_count" = "0" ]; then
@@ -154,6 +154,22 @@ run_strategy_6() {
     local duration=$((end_time - start_time))
     
     echo "✅ [策略6] 完成 (耗时 ${duration}s)"
+}
+
+# ============================================
+# 策略 7: V2 改进版 (成交量加权 + 波动率调整)
+# ============================================
+run_strategy_7() {
+    echo "🟣 [策略7] V2改进版(成交量加权+波动率调整) - 开始"
+    local start_time=$(date +%s)
+    
+    # 执行 V2 计算脚本，使用优化后的阈值 1.0
+    ./scripts/calc_independence_score_v2.sh "$TRADE_DATE" "1.0" "20" > "$OUTPUT_DIR/strategy7_$TRADE_DATE.log" 2>&1
+    
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+    
+    echo "✅ [策略7] 完成 (耗时 ${duration}s)"
 }
 
 # ============================================
@@ -199,6 +215,25 @@ export_results() {
             LIMIT 20
         " > "$OUTPUT_DIR/${preset}_$TRADE_DATE.json" 2>/dev/null || echo "[]" > "$OUTPUT_DIR/${preset}_$TRADE_DATE.json"
     done
+    
+    # V2 版本 Top 20
+    clickhouse-client --host="$CH_HOST" --port="$CH_PORT" --user="$CH_USER" --password="$CH_PASSWORD" \
+        --database="$CH_DB" --format=JSONEachRow --query "
+        SELECT 
+            symbol,
+            sector_code as sector,
+            independence_score_v2 as weighted_score,
+            base_score as raw_score,
+            volume_weighted_score,
+            volatility_adjusted_score,
+            volatility_daily,
+            'V2改进版' as strategy,
+            trade_date as date
+        FROM independence_score_v2_daily
+        WHERE trade_date = '$TRADE_DATE'
+        ORDER BY independence_score_v2 DESC
+        LIMIT 20
+    " > "$OUTPUT_DIR/v2_improved_$TRADE_DATE.json" 2>/dev/null || echo "[]" > "$OUTPUT_DIR/v2_improved_$TRADE_DATE.json"
     
     echo "✅ 结果导出完成: $OUTPUT_DIR/"
 }
@@ -248,8 +283,11 @@ main() {
     run_strategy_6 &
     PID6=$!
     
+    run_strategy_7 &
+    PID7=$!
+    
     # 等待所有后台任务完成
-    wait $PID1 $PID2 $PID3 $PID4 $PID5 $PID6
+    wait $PID1 $PID2 $PID3 $PID4 $PID5 $PID6 $PID7
     
     # 导出结果
     export_results
@@ -284,6 +322,11 @@ main() {
             --database="$CH_DB" --query "SELECT count() FROM independence_score_time_weighted WHERE date = '$TRADE_DATE' AND config_name = '$preset'" 2>/dev/null | xargs)
         echo "$preset: ${count:-0} 只股票"
     done
+    
+    # V2 版本统计
+    local v2_count=$(clickhouse-client --host="$CH_HOST" --port="$CH_PORT" --user="$CH_USER" --password="$CH_PASSWORD" \
+        --database="$CH_DB" --query "SELECT count() FROM independence_score_v2_daily WHERE trade_date = '$TRADE_DATE'" 2>/dev/null | xargs)
+    echo "V2改进版: ${v2_count:-0} 只股票 (成交量加权+波动率调整, 阈值1.0)"
 }
 
 # 运行主程序
