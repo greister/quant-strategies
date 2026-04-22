@@ -71,7 +71,7 @@ contra_intervals AS (
         s.return_5min,
         sec.sector_return,
         multiIf(
-            sec.sector_return < -0.005 AND (s.return_5min > 0 OR s.return_5min - sec.sector_return > 0.01),
+            sec.sector_return < -0.002 AND s.return_5min > sec.sector_return,
             1, 0
         ) AS is_contra,
         (SELECT weights[toUInt8(s.interval_idx) + 1] FROM config) AS weight

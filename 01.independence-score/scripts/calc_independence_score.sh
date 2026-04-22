@@ -3,17 +3,45 @@ set -e
 
 # 独立强度因子批量计算脚本
 # 计算股票在板块下跌时的逆势表现得分
+# 数据源：stock_industry_mapping (通达信行业分类 T 级)
 
 # 变量定义
 DB_NAME="${CLICKHOUSE_DB:-tdx2db_rust}"
+CH_USER="${CH_USER:-default}"
+CH_PASSWORD="${CH_PASSWORD:-tdx2db}"
 DATE="${1:-$(date +%Y-%m-%d)}"
 
 echo "Calculating independence score for date: $DATE"
 
 # 执行 INSERT INTO independence_score_daily
-clickhouse-client --database="$DB_NAME" --param_trade_date="$DATE" -q "
+clickhouse-client --user="$CH_USER" --password="$CH_PASSWORD" --database="$DB_NAME" --param_trade_date="$DATE" -q "
 INSERT INTO independence_score_daily
 WITH
+-- 每只股票取一个主行业分类（通达信 T 级行业，取最细分行业）
+-- stock_industry_mapping.symbol 格式为纯代码如 000001，需转换为 sz000001
+stock_sector_mapping AS (
+    SELECT
+        concat(
+            multiIf(
+                substring(symbol, 1, 2) IN ('00', '30', '15'), 'sz',
+                substring(symbol, 1, 2) IN ('60', '68', '51'), 'sh',
+                substring(symbol, 1, 2) IN ('82', '83', '87', '43', '92'), 'bj',
+                'sz'
+            ),
+            symbol
+        ) as symbol,
+        industry_name as sector_code
+    FROM (
+        SELECT symbol, industry_code, industry_name,
+            row_number() OVER (PARTITION BY symbol ORDER BY length(industry_code) DESC, industry_code) as rn
+        FROM stock_industry_mapping
+        WHERE industry_code LIKE 'T%'
+          AND industry_code != 'T00'
+          AND industry_name != ''
+    )
+    WHERE rn = 1
+),
+
 -- 计算个股5分钟收益率
 stock_returns AS (
     SELECT
@@ -41,7 +69,7 @@ stock_with_sector AS (
         sr.stock_return,
         ss.sector_code
     FROM stock_returns sr
-    INNER JOIN stock_sectors ss ON sr.symbol = ss.symbol
+    INNER JOIN stock_sector_mapping ss ON sr.symbol = ss.symbol
     WHERE sr.stock_return IS NOT NULL
 ),
 
@@ -64,7 +92,7 @@ combined_data AS (
         sws.stock_return,
         sr.sector_return,
         sws.stock_return - sr.sector_return as excess_return,
-        sr.sector_return < -0.5 AND (sws.stock_return > 0 OR (sws.stock_return - sr.sector_return) > 1) as is_contra_move
+        sr.sector_return < -0.2 AND sws.stock_return > sr.sector_return as is_contra_move
     FROM stock_with_sector sws
     INNER JOIN sector_returns sr ON sws.sector_code = sr.sector_code AND sws.datetime = sr.datetime
 ),
@@ -74,7 +102,7 @@ independence_score AS (
     SELECT
         symbol,
         sector_code,
-        countIf(is_contra_move) as independence_score,
+        countIf(is_contra_move) as ind_score,
         count(*) as total_intervals,
         round(countIf(is_contra_move) * 100.0 / count(*), 2) as independence_ratio,
         avgIf(stock_return, is_contra_move) as avg_contra_return,
@@ -84,23 +112,28 @@ independence_score AS (
 )
 
 SELECT
-    {trade_date:Date} as date,
     symbol,
-    sector_code as sector,
-    independence_score as score,
-    independence_score as raw_score,
+    {trade_date:Date} as date,
+    ind_score as score,
+    ind_score as raw_score,
     1.0 as margin_weight,
-    count(*) as sector_stock_count,
-    independence_score as contra_count
+    sector_code as sector,
+    total_intervals as sector_stock_count,
+    ind_score as contra_count,
+    independence_ratio,
+    avg_contra_return,
+    max_excess_return,
+    total_intervals,
+    row_number() OVER (ORDER BY ind_score DESC) as rn
 FROM independence_score
-WHERE independence_score > 0
-ORDER BY independence_score DESC, independence_ratio DESC
+WHERE ind_score > 0
+ORDER BY ind_score DESC, independence_ratio DESC
 "
 
 echo "Done. Top 10 scores:"
 
 # 查询并显示当日 Top 10 结果
-clickhouse-client --database="$DB_NAME" --param_trade_date="$DATE" -q "
+clickhouse-client --user="$CH_USER" --password="$CH_PASSWORD" --database="$DB_NAME" --param_trade_date="$DATE" -q "
 SELECT
     date,
     symbol,

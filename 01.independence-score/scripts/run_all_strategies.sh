@@ -209,10 +209,10 @@ export_results() {
 copy_to_vault() {
     echo ""
     echo "📤 复制报告到 Obsidian Vault..."
-    
+
     # 确保目标目录存在
     mkdir -p "$REPORT_TARGET_DIR"
-    
+
     # 复制报告
     local report_file="$OUTPUT_DIR/${TRADE_DATE}_report.md"
     if [ -f "$report_file" ]; then
@@ -224,39 +224,102 @@ copy_to_vault() {
 }
 
 # ============================================
+# 策略 7: S09-S12 高阶因子策略
+# ============================================
+run_strategy_7() {
+    echo "💎 [策略7] S09/S10/S12 高阶因子策略 - 开始"
+    local start_time=$(date +%s)
+
+    # 创建高级表（如果不存在）
+    clickhouse-client --host="$CH_HOST" --port="$CH_PORT" --user="$CH_USER" --password="$CH_PASSWORD" \
+        --database="$CH_DB" < sql/create_advanced_tables.sql 2>/dev/null || true
+
+    python3 scripts/calc_advanced_score.py "$TRADE_DATE" --strategy all > "$OUTPUT_DIR/strategy7_$TRADE_DATE.log" 2>&1
+
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+
+    echo "✅ [策略7] S09/S10/S12 完成 (耗时 ${duration}s)"
+}
+
+# ============================================
+# 策略 8: S11 周频一致性 (仅在周五运行)
+# ============================================
+run_strategy_8() {
+    echo "📅 [策略8] S11 周频一致性筛选 - 开始"
+    local start_time=$(date +%s)
+
+    python3 scripts/calc_weekly_consistency.py "$TRADE_DATE" > "$OUTPUT_DIR/strategy8_$TRADE_DATE.log" 2>&1
+
+    local end_time=$(date +%s)
+    local duration=$((end_time - start_time))
+
+    echo "✅ [策略8] S11 完成 (耗时 ${duration}s)"
+}
+
+# ============================================
 # 主执行流程
 # ============================================
 main() {
     local total_start=$(date +%s)
-    
+
     # 并行执行所有策略
     run_strategy_1 &
     PID1=$!
-    
+
     run_strategy_2 &
     PID2=$!
-    
+
     run_strategy_3 &
     PID3=$!
-    
+
     run_strategy_4 &
     PID4=$!
-    
+
     run_strategy_5 &
     PID5=$!
-    
+
     run_strategy_6 &
     PID6=$!
-    
+
+    # S09/S10/S12 高阶因子 — 需要S01先完成（S10依赖S01数据）
+    # 所以等S1完成后再执行
+    wait $PID1
+
+    run_strategy_7 &
+    PID7=$!
+
     # 等待所有后台任务完成
-    wait $PID1 $PID2 $PID3 $PID4 $PID5 $PID6
+    wait $PID2 $PID3 $PID4 $PID5 $PID6 $PID7
     
     # 导出结果
     export_results
     
     # 复制到 Vault
     copy_to_vault
-    
+
+    # 生成策略报告
+    echo ""
+    echo "📊 生成策略执行报告..."
+    python3 scripts/gen_reports.py "$TRADE_DATE"
+
+    # 生成市场统计 (每日)
+    echo ""
+    echo "📈 生成市场统计 (daily)..."
+    python3 scripts/market_stats.py "$TRADE_DATE" --mode daily
+
+    # 周五额外生成周报、高阶因子分析和S11周频一致性
+    if [ "$(date -d "$TRADE_DATE" +%u)" = "5" ]; then
+        echo ""
+        echo "📈 生成周统计和高阶因子分析..."
+        python3 scripts/market_stats.py "$TRADE_DATE" --mode weekly
+        python3 scripts/market_stats.py "$TRADE_DATE" --mode advanced
+
+        echo ""
+        echo "📅 运行 S11 周频一致性筛选..."
+        run_strategy_8
+    fi
+
     local total_end=$(date +%s)
     local total_duration=$((total_end - total_start))
     
@@ -283,6 +346,13 @@ main() {
         local count=$(clickhouse-client --host="$CH_HOST" --port="$CH_PORT" --user="$CH_USER" --password="$CH_PASSWORD" \
             --database="$CH_DB" --query "SELECT count() FROM independence_score_time_weighted WHERE date = '$TRADE_DATE' AND config_name = '$preset'" 2>/dev/null | xargs)
         echo "$preset: ${count:-0} 只股票"
+    done
+
+    # 高阶因子统计
+    for strategy in S09 S10 S12 S13; do
+        local count=$(clickhouse-client --host="$CH_HOST" --port="$CH_PORT" --user="$CH_USER" --password="$CH_PASSWORD" \
+            --database="$CH_DB" --query "SELECT count() FROM independence_score_advanced WHERE date = '$TRADE_DATE' AND strategy = '$strategy'" 2>/dev/null | xargs)
+        echo "$strategy: ${count:-0} 只股票"
     done
 }
 

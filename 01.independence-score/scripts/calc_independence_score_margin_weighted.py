@@ -213,10 +213,7 @@ class MarginWeightedIndependenceScore:
                         sws.datetime,
                         sws.stock_return,
                         sr.sector_return,
-                        sr.sector_return < -0.5 AND (
-                            sws.stock_return > 0 OR
-                            (sws.stock_return - sr.sector_return) > 1
-                        ) as is_contra_move
+                        sr.sector_return < -0.2 AND sws.stock_return > sr.sector_return as is_contra_move
                     FROM stock_with_sector sws
                     INNER JOIN sector_returns sr
                         ON sws.sector_code = sr.sector_code

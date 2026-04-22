@@ -3,7 +3,7 @@
 -- 参数: {trade_date:Date} - 交易日期
 --
 -- 阈值说明:
---   sector_return_threshold: -0.5%  - 板块下跌阈值，低于此值视为板块下跌
+--   sector_return_threshold: -0.2%  - 板块下跌阈值，低于此值视为板块下跌
 --   stock_return_threshold:  0%     - 个股上涨阈值，高于此值视为个股上涨
 --   excess_return_threshold: 1%     - 超额收益阈值，高于此值视为显著跑赢板块
 
@@ -58,7 +58,7 @@ combined_data AS (
         sws.stock_return,
         sr.sector_return,
         sws.stock_return - sr.sector_return as excess_return,
-        sr.sector_return < -0.5 AND (sws.stock_return > 0 OR (sws.stock_return - sr.sector_return) > 1) as is_contra_move
+        sr.sector_return < -0.2 AND sws.stock_return > sr.sector_return as is_contra_move
     FROM stock_with_sector sws
     INNER JOIN sector_returns sr ON sws.sector_code = sr.sector_code AND sws.datetime = sr.datetime
 ),

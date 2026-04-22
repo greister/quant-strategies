@@ -48,7 +48,7 @@ contra_intervals AS (
         sec.sector_return,
         -- 是否满足逆势条件
         multiIf(
-            sec.sector_return < -0.005 AND (s.return_5min > 0 OR s.return_5min - sec.sector_return > 0.01),
+            sec.sector_return < -0.002 AND s.return_5min > sec.sector_return,
             1,
             0
         ) AS is_contra
