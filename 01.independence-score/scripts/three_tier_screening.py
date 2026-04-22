@@ -126,7 +126,7 @@ WEIGHTS = {
 }
 
 # 第一层过滤阈值 (独立强度原始分 >= 此值进入候选池)
-DEFAULT_IS_THRESHOLD = 1.5
+DEFAULT_IS_THRESHOLD = 8.0  # v2.0 等效阈值 (v1.0=1.5 ≈ p55; v2.0 p55≈8.0)
 
 # 第一层输出倍数 (最终输出 Top N, 第一层筛出 Top N * MULTIPLIER)
 FIRST_TIER_MULTIPLIER = 3

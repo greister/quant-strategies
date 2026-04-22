@@ -503,16 +503,18 @@ def calculate_composite_score(stock, vwap, vap, profile, margin, ind_score, min_
         elif profile['morning_max_rise'] > 1.5:
             score += 2
 
-    # 5. 独立强度 (0-15分)
+    # 5. 独立强度 (0-15分) — v2.0 阈值校准
+    # 原始阈值(v1.0): 3/1.5/0.5 对应约 p90/p70/p40
+    # v2.0 等效:      15/10/8   对应约 p90/p75/p60
     if ind_score:
         s = ind_score['score']
-        if s >= 3:
+        if s >= 15:
             score += 15
             notes.append("独立强度高")
-        elif s >= 1.5:
+        elif s >= 10:
             score += 10
             notes.append("独立强度良好")
-        elif s >= 0.5:
+        elif s >= 8:
             score += 5
         elif s > 0:
             score += 2
@@ -759,10 +761,10 @@ def generate_report(trade_date, top_n=50, sector_filter=None, min_change=0):
 
     report_lines.extend([
         f"",
-        f"### 相对强度高分 (>=1.5) 且上涨",
+        f"### 相对强度高分 (>=8.0) 且上涨",
         f"",
     ])
-    ind_high = [r for r in results if r['ind_score'] >= 1.5 and r['change_pct'] > 0][:20]
+    ind_high = [r for r in results if r['ind_score'] >= 8.0 and r['change_pct'] > 0][:20]
     if ind_high:
         report_lines.append(f"| 代码 | 名称 | 涨跌% | 综合强度 | 逆势 | 顺势 | VWAP偏离% | 早盘占比% | 信号 |")
         report_lines.append(f"|------|------|-------|---------|------|------|-----------|----------|------|")
