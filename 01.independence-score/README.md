@@ -52,16 +52,33 @@ LIMIT 20
 ```
 .
 ├── sql/
-│   ├── create_independence_tables.sql    # 建表脚本（结果表 + 视图）
-│   ├── calc_independence_score.sql       # 核心计算逻辑（查询版）
-│   ├── queries_independence_score.sql    # 常用查询示例
-│   └── backtest_independence_score.sql   # 回测 SQL
+│   ├── create_independence_tables.sql      # 建表脚本（结果表 + 视图）
+│   ├── create_time_weighted_tables.sql     # 时间加权表
+│   ├── create_advanced_tables.sql          # 高阶因子表
+│   ├── calc_independence_score.sql         # 核心计算逻辑（查询版）
+│   ├── calc_time_weighted_score.sql        # 时间加权计算
+│   ├── queries_independence_score.sql      # 常用查询示例
+│   └── backtest_independence_score.sql     # 回测 SQL
 ├── scripts/
-│   ├── calc_independence_score.sh                 # 批量计算脚本（基础版）
-│   ├── calc_independence_score_margin_weighted.py # 融资加权版（CH+PG）
-│   └── backtest_independence_score.py             # 历史回测脚本
+│   ├── run_all_strategies.sh                        # 一键运行全部 8 个策略（并行）
+│   ├── calc_independence_score.sh                   # 策略1：基础独立强度因子
+│   ├── calc_time_weighted_score.py                  # 策略2~5：时间加权因子（多预设）
+│   ├── calc_independence_score_margin_weighted.py   # 策略6：融资余额加权
+│   ├── calc_advanced_score.py                       # 策略7：S09/S10/S12 高阶因子
+│   ├── calc_weekly_consistency.py                   # 策略8：S11 周频一致性（周五）
+│   ├── daily_stock_screening.py                     # 每日全市场扫描 + 生成选股报告
+│   ├── backtest_independence_score.py               # 历史回测
+│   ├── optimize_backtest.py                         # 回测参数优化
+│   ├── combined_factor_demo.py                      # 双因子组合演示
+│   ├── market_stats.py                              # 市场统计（日/周/高阶）
+│   ├── gen_reports.py                               # 策略执行报告生成
+│   ├── visualize_independence_score.py              # 可视化（matplotlib）
+│   └── visualize_independence_score_plotly.py       # 可视化（Plotly）
 └── docs/
-    └── plans/                            # 设计文档
+    ├── 完整项目报告.md
+    ├── 多因子组合说明.md
+    ├── 多因子组合演示报告.md
+    └── plans/                              # 设计文档
 ```
 
 ## 参数调整
@@ -234,3 +251,149 @@ clickhouse-client --database=tdx2db_rust -q "
 - 平均最大回撤
 - 夏普比率
 - 分板块表现统计
+
+## 一键运行全部策略
+
+```bash
+# 运行今日全部策略（并行执行）
+./scripts/run_all_strategies.sh
+
+# 运行指定日期
+./scripts/run_all_strategies.sh 2026-04-21
+```
+
+执行流程：
+1. 并行启动策略 1~6（基础版 + 4 个时间加权 + 融资加权）
+2. 等待策略 1 完成后，启动策略 7（S09/S10/S12，依赖 S01 数据）
+3. 导出所有结果到 `results/` 目录
+4. 生成策略执行报告并复制到 Obsidian Vault
+5. 周五额外运行策略 8（S11 周频一致性）+ 周报
+
+---
+
+## 高阶因子策略（S09 / S10 / S11 / S12）
+
+在基础独立强度因子（S01）之上，衍生出 4 个高阶因子：
+
+| 因子 | 名称 | 说明 | 运行方式 |
+|------|------|------|----------|
+| **S09** | 独立强度 + 融资共振 | S01 分数 + 融资净买入双重确认 | `calc_advanced_score.py --strategy S09` |
+| **S10** | 独立强度 + 融券压制 | S01 分数 + 融券余额下降确认 | `calc_advanced_score.py --strategy S10` |
+| **S11** | 周频一致性 | 近 5 个交易日 S01 持续高分的股票 | `calc_weekly_consistency.py`（仅周五） |
+| **S12** | 独立强度 + 行业偏离 | S01 分数 + 行业内相对偏离度 | `calc_advanced_score.py --strategy S12` |
+
+### 使用方法
+
+```bash
+# 运行全部高阶因子
+./scripts/calc_advanced_score.py 2026-04-21 --strategy all
+
+# 仅运行 S09
+./scripts/calc_advanced_score.py 2026-04-21 --strategy S09
+
+# 周五运行周频一致性
+./scripts/calc_weekly_consistency.py 2026-04-21
+```
+
+---
+
+## 每日选股报告
+
+全市场扫描，生成包含独立强度、融资融券、分时形态等多维度的个股分析报告。
+
+### 使用方法
+
+```bash
+# 生成今日报告
+./scripts/daily_stock_screening.py
+
+# 生成指定日期报告
+./scripts/daily_stock_screening.py 2026-04-21
+
+# 仅分析指定股票
+./scripts/daily_stock_screening.py --symbol sh600519
+```
+
+### 报告输出
+
+- 全市场独立强度排名 Top 50
+- 融资净买入异动股票
+- 分时形态异常（逆势上涨）股票
+- 输出到 Obsidian Vault：`30_Research/量化分析/个股分析/`
+
+---
+
+## 双因子组合演示
+
+结合**独立强度因子（S01）**和**动量因子（02）**的综合选股策略演示。
+
+### 核心逻辑
+
+- **S01 独立强度**：衡量板块下跌时的抗跌能力
+- **动量因子**：衡量近期价格趋势强度
+- **组合方式**：S01 筛选后，按动量排序取 Top N
+
+### 使用方法
+
+```bash
+./scripts/combined_factor_demo.py 2026-04-21 --top-n 20
+```
+
+---
+
+## 回测参数优化
+
+对独立强度因子的阈值、持有期等参数进行网格搜索，找到最优参数组合。
+
+### 使用方法
+
+```bash
+# 参数网格搜索
+./scripts/optimize_backtest.py \
+    --start 2025-01-01 \
+    --end 2025-12-31 \
+    --thresholds 2.0,3.0,4.0,5.0 \
+    --hold-days 3,5,10 \
+    --top-n 10,20
+
+# 输出：各参数组合的胜率、夏普比率、最大回撤对比
+```
+
+---
+
+## 市场统计与报告生成
+
+### 市场统计
+
+```bash
+# 日度统计
+./scripts/market_stats.py 2026-04-21 --mode daily
+
+# 周度统计（周五运行）
+./scripts/market_stats.py 2026-04-21 --mode weekly
+
+# 高阶因子统计
+./scripts/market_stats.py 2026-04-21 --mode advanced
+```
+
+### 报告生成
+
+```bash
+# 生成策略执行报告
+./scripts/gen_reports.py 2026-04-21
+```
+
+---
+
+## 策略汇总
+
+| # | 策略 | 脚本 | 输出表 / 文件 |
+|---|------|------|--------------|
+| 1 | 基础独立强度 | `calc_independence_score.sh` | `independence_score_daily` |
+| 2 | 时间加权-尾盘 | `calc_time_weighted_score.py --preset evening_focus` | `independence_score_time_weighted` |
+| 3 | 时间加权-早盘 | `calc_time_weighted_score.py --preset morning_focus` | `independence_score_time_weighted` |
+| 4 | 时间加权-趋势市 | `calc_time_weighted_score.py --preset trending_market` | `independence_score_time_weighted` |
+| 5 | 时间加权-保守型 | `calc_time_weighted_score.py --preset conservative` | `independence_score_time_weighted` |
+| 6 | 融资余额加权 | `calc_independence_score_margin_weighted.py` | `independence_score_margin_weighted` |
+| 7 | S09/S10/S12 | `calc_advanced_score.py --strategy all` | `independence_score_advanced` |
+| 8 | S11 周频一致性 | `calc_weekly_consistency.py` | `weekly_consistency_screening` |

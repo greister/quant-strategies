@@ -782,10 +782,16 @@ def analyze_margin(pg, symbol, date, days=20, daily_amounts=None):
     ts = symbol_to_tscode(symbol)
     cur = pg.cursor()
     cur.execute("""
-    SELECT trade_date, margin_buy_amount, margin_repay,
-        short_sell_volume, short_repay, short_balance_volume,
-        margin_balance_buy
-    FROM margin.margin_trading_detail_combined
+    SELECT
+        trade_date,
+        margin_buy_amount,
+        margin_repay_calc,      -- 统一计算后的融资偿还额(元)
+        short_sell_volume,
+        short_repay_calc,       -- 统一计算后的融券偿还量(股数)
+        short_balance_volume,
+        margin_balance_buy,
+        margin_net_calc         -- 统一计算后的融资净买入(元)
+    FROM margin.margin_trading_detail_unified
     WHERE ts_code = %s AND trade_date <= %s
     ORDER BY trade_date DESC
     LIMIT %s
@@ -811,13 +817,14 @@ def analyze_margin(pg, symbol, date, days=20, daily_amounts=None):
         short_repay = r[4] or 0
         short_bal = r[5] or 0
         margin_balance = r[6] or 0
+        margin_net = r[7] or 0
         # 杠杆集中度: 融资买入额 / 当日总成交额
         d = str(r[0])
         daily_amt = daily_amounts.get(d, 0) if daily_amounts else 0
         leverage_ratio = margin_buy / daily_amt * 100 if daily_amt else 0
         detail.append({
             'date': d, 'margin_buy': margin_buy, 'margin_repay': margin_repay,
-            'margin_net': margin_buy - margin_repay,
+            'margin_net': margin_net,
             'short_sell': short_sell, 'short_repay': short_repay,
             'short_net': short_sell - short_repay, 'short_bal': short_bal,
             'margin_balance': margin_balance,

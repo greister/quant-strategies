@@ -1,8 +1,8 @@
 #!/bin/bash
 set -e
 
-# 独立强度因子批量计算脚本
-# 计算股票在板块下跌时的逆势表现得分
+# 相对强度因子批量计算脚本
+# 计算股票相对板块的超额表现得分（逆势抗跌 + 顺势领先）
 # 数据源：stock_industry_mapping (通达信行业分类 T 级)
 
 # 变量定义
@@ -16,6 +16,9 @@ echo "Calculating independence score for date: $DATE"
 # 执行 INSERT INTO independence_score_daily
 clickhouse-client --user="$CH_USER" --password="$CH_PASSWORD" --database="$DB_NAME" --param_trade_date="$DATE" -q "
 INSERT INTO independence_score_daily
+(symbol, date, score, raw_score, margin_weight, sector, sector_stock_count,
+ contra_count, independence_ratio, avg_contra_return, max_excess_return,
+ total_intervals, rn, lead_count, lead_ratio, avg_lead_return, max_lead_excess)
 WITH
 -- 每只股票取一个主行业分类（通达信 T 级行业，取最细分行业）
 -- stock_industry_mapping.symbol 格式为纯代码如 000001，需转换为 sz000001
@@ -92,21 +95,27 @@ combined_data AS (
         sws.stock_return,
         sr.sector_return,
         sws.stock_return - sr.sector_return as excess_return,
-        sr.sector_return < -0.2 AND sws.stock_return > sr.sector_return as is_contra_move
+        sr.sector_return < -0.2 AND sws.stock_return > sr.sector_return as is_contra_move,
+        sr.sector_return > 0.2 AND sws.stock_return > sr.sector_return as is_lead_move
     FROM stock_with_sector sws
     INNER JOIN sector_returns sr ON sws.sector_code = sr.sector_code AND sws.datetime = sr.datetime
 ),
 
--- 统计每个股票的逆势区间数量
+-- 统计每个股票的逆势区间数量和顺势领先区间数量
 independence_score AS (
     SELECT
         symbol,
         sector_code,
-        countIf(is_contra_move) as ind_score,
+        countIf(is_contra_move) as contra_count,
+        countIf(is_lead_move) as lead_count,
+        countIf(is_contra_move) + countIf(is_lead_move) as total_strength,
         count(*) as total_intervals,
-        round(countIf(is_contra_move) * 100.0 / count(*), 2) as independence_ratio,
+        round(countIf(is_contra_move) * 100.0 / count(*), 2) as contra_ratio,
+        round(countIf(is_lead_move) * 100.0 / count(*), 2) as lead_ratio,
         avgIf(stock_return, is_contra_move) as avg_contra_return,
-        maxIf(excess_return, is_contra_move) as max_excess_return
+        avgIf(stock_return, is_lead_move) as avg_lead_return,
+        maxIf(excess_return, is_contra_move) as max_contra_excess,
+        maxIf(excess_return, is_lead_move) as max_lead_excess
     FROM combined_data
     GROUP BY symbol, sector_code
 )
@@ -114,20 +123,24 @@ independence_score AS (
 SELECT
     symbol,
     {trade_date:Date} as date,
-    ind_score as score,
-    ind_score as raw_score,
+    total_strength as score,
+    total_strength as raw_score,
     1.0 as margin_weight,
     sector_code as sector,
     total_intervals as sector_stock_count,
-    ind_score as contra_count,
-    independence_ratio,
+    contra_count,
+    contra_ratio as independence_ratio,
     avg_contra_return,
-    max_excess_return,
+    max_contra_excess as max_excess_return,
     total_intervals,
-    row_number() OVER (ORDER BY ind_score DESC) as rn
+    row_number() OVER (ORDER BY total_strength DESC) as rn,
+    lead_count,
+    lead_ratio,
+    avg_lead_return,
+    max_lead_excess
 FROM independence_score
-WHERE ind_score > 0
-ORDER BY ind_score DESC, independence_ratio DESC
+WHERE total_strength > 0
+ORDER BY total_strength DESC, contra_count DESC
 "
 
 echo "Done. Top 10 scores:"
@@ -139,7 +152,8 @@ SELECT
     symbol,
     sector,
     score,
-    contra_count
+    contra_count,
+    lead_count
 FROM independence_score_daily
 WHERE date = {trade_date:Date}
 ORDER BY score DESC
