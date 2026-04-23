@@ -70,6 +70,8 @@ stock_returns AS (
         datetime,
         close,
         prev_close,
+        high,
+        low,
         volume,
         amount,
         (close - prev_close) / prev_close * 100 as stock_return
@@ -78,6 +80,8 @@ stock_returns AS (
             symbol,
             datetime,
             close,
+            high,
+            low,
             volume,
             amount,
             lagInFrame(close) OVER (
@@ -89,6 +93,7 @@ stock_returns AS (
         WHERE toDate(datetime) = {trade_date:Date}
     )
     WHERE prev_close > 0
+      AND high != low  -- 排除一字板K线（涨停/跌停/停牌）
 ),
 
 -- ── 3. 计算每只股票的当日总成交额 ──────────────────────────────────────────
@@ -192,9 +197,9 @@ independence_score AS (
 SELECT
     symbol,
     {trade_date:Date} as date,
-    -- 综合得分 = 加权逆势 + 加权顺势 + 超额收益强度
-    round(contra_count + lead_count + excess_strength, 4) as score,
-    round(contra_count + lead_count + excess_strength, 4) as raw_score,
+    -- 综合得分 = 加权逆势 + 超额收益强度 (v2.1: 去掉 lead_count，只处理下跌时的抗跌表现)
+    round(contra_count + excess_strength, 4) as score,
+    round(contra_count + excess_strength, 4) as raw_score,
     1.0 as margin_weight,
     sector_code as sector,
     sector_stock_count,
