@@ -452,6 +452,17 @@ def tier2_deep_validation(ch, pg, trade_date: str, tier1_list: List[Tier1Candida
     for r in amt_rows:
         amount_map[r[0]] = float(r[1] or 0)
 
+    # ── 2.5b 当日涨跌幅过滤 ──
+    # 排除已经大涨(>5%)或大跌(<-5%)的股票
+    change_map = {}
+    change_rows = ch.execute(f"""
+        SELECT symbol, (close - open) / open * 100 as change_pct
+        FROM raw_stocks_daily
+        WHERE date = '{trade_date}' AND symbol IN ('{symbol_list}') AND open > 0
+    """)
+    for r in change_rows:
+        change_map[r[0]] = float(r[1] or 0)
+
     # ── 2.6 组装 Tier2 结果 ──
     # 归一化: 基于当日候选池的分布
     vwap_values = [v['dev'] for v in vwap_map.values()]
@@ -487,8 +498,15 @@ def tier2_deep_validation(ch, pg, trade_date: str, tier1_list: List[Tier1Candida
     vap_norm = normalize_min_max(vap_values)
 
     candidates = []
+    filtered_count = 0
     for i, t1 in enumerate(tier1_list):
         sym = t1.symbol
+
+        # 涨跌幅过滤: 排除大涨(>5%)或大跌(<-5%)
+        change_pct = change_map.get(sym, 0)
+        if change_pct > 5.0 or change_pct < -5.0:
+            filtered_count += 1
+            continue
 
         vwap_data = vwap_map.get(sym, {})
         vap_data = vap_map.get(sym, {})
@@ -514,7 +532,7 @@ def tier2_deep_validation(ch, pg, trade_date: str, tier1_list: List[Tier1Candida
             daily_amount=amount,
         ))
 
-    log.info(f"【第二层】完成: {len(candidates)} 只候选通过精筛")
+    log.info(f"【第二层】完成: {len(candidates)} 只候选通过精筛 (过滤大涨大跌 {filtered_count} 只)")
     log.info(f"  VWAP计算: {len(vwap_map)}/{len(tier1_list)}, "
              f"VaP: {len(vap_map)}/{len(tier1_list)}, "
              f"杠杆: {len(margin_map)}/{len(tier1_list)}, "
