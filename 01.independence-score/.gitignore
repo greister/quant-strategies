@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# 运行时结果和日志
+results/*.json
+results/*.log
+results/*.md
+results/*.txt
+
+# 临时文件
+*.tmp
+*.swp
+*.swo
+*~
