@@ -655,18 +655,32 @@ def generate_report(trade_date, top_n=50, sector_filter=None, min_change=0):
         f">",
         f"> 过滤条件: 已排除 sz399/sh000/sh880/sh900/sz200/sh11/sh12/sz12/sz11 等指数/基金/B股/可转债",
         f"",
-        f"| 排名 | 代码 | 名称 | 行业 | 评分 | 涨跌% | 成交额(亿) | VWAP偏离% | VA位置% | 综合强度 | 逆势 | 顺势 | 早盘占比% | 杠杆集中度% | 信号 |",
-        f"|------|------|------|------|------|-------|-----------|-----------|---------|---------|------|------|----------|------------|------|",
+        f"| 排名 | 代码 | 名称 | 行业 | 评分 | 涨跌% | 成交额(亿) | VWAP偏离% | 综合强度 | 信号 |",
+        f"|------|------|------|------|------|-------|-----------|-----------|----------|------|",
     ]
 
     for i, r in enumerate(results[:top_n], 1):
         vwap_str = f"{r['vwap_dev']:.2f}" if r['vwap_dev'] is not None else "-"
-        va_str = f"{r['va_position']:.0f}" if r['va_position'] is not None else "-"
-        notes_str = ", ".join(r['notes'][:3]) if r['notes'] else "-"
+        notes_str = ", ".join(r['notes'][:2]) if r['notes'] else "-"
         report_lines.append(
             f"| {i} | `{r['symbol']}` | {r['name']} | {r['sector']} | **{r['score']:.1f}** | "
-            f"{r['change_pct']:+.2f} | {r['amount']:.2f} | {vwap_str} | {va_str} | "
-            f"{r['ind_score']:.2f} | {r.get('contra_count', 0)} | {r.get('lead_count', 0)} | {r['morning_pct']:.1f} | {r['margin_concentration']:.1f} | {notes_str} |"
+            f"{r['change_pct']:+.2f} | {r['amount']:.2f} | {vwap_str} | "
+            f"{r['ind_score']:.2f} | {notes_str} |"
+        )
+
+    # ── 技术指标明细（可折叠）──
+    report_lines.extend([
+        f"",
+        f"> [!info]- 点击查看 Top {top_n} 技术指标明细",
+        f">",
+        f"> | 排名 | 代码 | VA位置% | 逆势 | 顺势 | 早盘占比% | 杠杆集中度% |",
+        f"> |------|------|---------|------|------|----------|------------|",
+    ])
+    for i, r in enumerate(results[:top_n], 1):
+        va_str = f"{r['va_position']:.0f}" if r['va_position'] is not None else "-"
+        report_lines.append(
+            f"> | {i} | `{r['symbol']}` | {va_str} | {r.get('contra_count', 0)} | "
+            f"{r.get('lead_count', 0)} | {r['morning_pct']:.1f} | {r['margin_concentration']:.1f} |"
         )
 
     # 按行业分组 Top 3
