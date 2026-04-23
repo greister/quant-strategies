@@ -785,7 +785,8 @@ def generate_report(trade_date, top_n=50, sector_filter=None, min_change=0):
     ])
 
     # 保存报告
-    report_path = Path(VAULT_DIR) / f"{trade_date}_每日选股报告_增强因子扫描.md"
+    today = datetime.now().strftime("%Y-%m-%d")
+    report_path = Path(VAULT_DIR) / f"{today}_每日选股报告_增强因子扫描.md"
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text("\n".join(report_lines), encoding='utf-8')
     log.info(f"报告已保存: {report_path}")

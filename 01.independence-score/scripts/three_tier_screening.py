@@ -766,19 +766,20 @@ def main():
         results = tier3_composite_scoring(tier2_list, top_n, WEIGHTS)
 
         # ── 输出 ──
+        today = datetime.now().strftime("%Y-%m-%d")
         print_results(results, tier2_map, WEIGHTS)
 
         # Markdown 报告
-        md_path = os.path.join(args.output_dir, f"{trade_date}_三层筛选报告.md")
+        md_path = os.path.join(args.output_dir, f"{today}_三层筛选报告.md")
         generate_markdown_report(trade_date, results, tier2_map, tier1_map, md_path)
 
         # JSON 输出
-        json_path = os.path.join(args.output_dir, f"{trade_date}_三层筛选.json")
+        json_path = os.path.join(args.output_dir, f"{today}_三层筛选.json")
         generate_json_output(trade_date, results, json_path)
 
         # 复制到 Vault
         if not args.no_vault:
-            vault_path = os.path.join(VAULT_DIR, f"{trade_date}_三层筛选报告.md")
+            vault_path = os.path.join(VAULT_DIR, f"{today}_三层筛选报告.md")
             import shutil
             shutil.copy(md_path, vault_path)
             log.info(f"已复制到 Vault: {vault_path}")
