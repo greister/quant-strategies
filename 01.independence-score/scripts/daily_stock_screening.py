@@ -366,7 +366,7 @@ def fetch_margin_data(pg, trade_date):
             short_repay_calc,       -- 统一计算后的融券偿还量(股数)
             margin_net_calc         -- 统一计算后的融资净买入(元)
         FROM margin.margin_trading_detail_unified
-        WHERE trade_date = %s
+        WHERE trade_date = (SELECT MAX(trade_date) FROM margin.margin_trading_detail_unified WHERE trade_date <= %s)
     """, (trade_date,))
     result = {}
     for r in cur.fetchall():

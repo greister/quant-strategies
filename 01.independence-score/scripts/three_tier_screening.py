@@ -365,7 +365,7 @@ def tier2_deep_validation(ch, pg, trade_date: str, tier1_list: List[Tier1Candida
                t.margin_buy_amount,
                t.margin_net_calc
         FROM margin.margin_trading_detail_unified t
-        WHERE t.trade_date = '{trade_date}'
+        WHERE t.trade_date = (SELECT MAX(trade_date) FROM margin.margin_trading_detail_unified WHERE trade_date <= '{trade_date}')
           AND (t.ts_code IN (
               SELECT replace(symbol, 'sh', '') FROM (VALUES {','.join(["('" + s + "')" for s in symbols if s.startswith('sh')])}) AS t(symbol)
           ) OR t.ts_code IN (
@@ -385,7 +385,7 @@ def tier2_deep_validation(ch, pg, trade_date: str, tier1_list: List[Tier1Candida
         cur.execute(f"""
             SELECT ts_code, margin_balance_buy, margin_buy_amount, margin_net_calc
             FROM margin.margin_trading_detail_unified
-            WHERE trade_date = %s AND ts_code IN ('{codes}')
+            WHERE trade_date = (SELECT MAX(trade_date) FROM margin.margin_trading_detail_unified WHERE trade_date <= %s) AND ts_code IN ('{codes}')
         """, (trade_date,))
         for r in cur.fetchall():
             ts_code, bal, buy, net = r
