@@ -107,7 +107,7 @@ log = logging.getLogger(__name__)
 
 # ─── 配置 ───────────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parent.parent.parent / '00.shared' / 'config'
-VAULT_DIR = "/mnt/d/obsidian/OrbitOS-vault/30_Research/量化分析/个股分析"
+VAULT_DIR = "/mnt/d/obsidian/OrbitOS-vault/30_Research/量化分析/策略执行结果/01-独立强度因子"
 
 # A-share 过滤条件
 A_SHARE_FILTER = """
