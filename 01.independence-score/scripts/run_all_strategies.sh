@@ -139,15 +139,16 @@ run_strategy_6() {
     echo "🔴 [策略6] 融资余额加权 - 开始"
     local start_time=$(date +%s)
     
-    # 检查是否有融资数据
-    local margin_count=$(psql "postgresql://$PG_USER:$PG_PASSWORD@$PG_HOST:$PG_PORT/$PG_DB" \
-        -t -c "SELECT count(*) FROM margin_trading_detail_combined WHERE trade_date = '$TRADE_DATE'" 2>/dev/null | xargs)
+    # 检查最新可用融资数据日期 (T-1回退)
+    local margin_latest=$(psql "postgresql://$PG_USER:$PG_PASSWORD@$PG_HOST:$PG_PORT/$PG_DB" \
+        -t -c "SELECT MAX(trade_date)::text FROM margin.margin_trading_detail_unified WHERE trade_date <= '$TRADE_DATE'" 2>/dev/null | xargs)
     
-    if [ -z "$margin_count" ] || [ "$margin_count" = "0" ]; then
+    if [ -z "$margin_latest" ] || [ "$margin_latest" = "NULL" ]; then
         echo "⚠️ [策略6] 无融资数据，跳过"
         return
     fi
     
+    echo "📊 [策略6] 使用融资数据日期: $margin_latest (T-1回退)"
     ./scripts/calc_independence_score_margin_weighted.py "$TRADE_DATE" > "$OUTPUT_DIR/strategy6_$TRADE_DATE.log" 2>&1
     
     local end_time=$(date +%s)

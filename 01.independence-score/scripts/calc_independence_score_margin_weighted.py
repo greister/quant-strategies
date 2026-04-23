@@ -70,19 +70,22 @@ class MarginWeightedIndependenceScore:
 
     def get_margin_data(self, trade_date: str) -> List[Tuple]:
         """
-        从 PostgreSQL 获取融资融券数据
+        从 PostgreSQL 获取融资融券数据 (T-1回退)
 
         Returns:
             List of (symbol, margin_balance, change_rate)
         """
         query = """
-        WITH today_data AS (
+        WITH latest_date AS (
+            SELECT MAX(trade_date) as d FROM margin_trading_detail_combined WHERE trade_date <= %s
+        ),
+        today_data AS (
             SELECT
                 ts_code,
                 margin_balance_buy,
                 trade_date
             FROM margin_trading_detail_combined
-            WHERE trade_date = %s
+            WHERE trade_date = (SELECT d FROM latest_date)
         ),
         prev_data AS (
             SELECT
@@ -90,7 +93,7 @@ class MarginWeightedIndependenceScore:
                 margin_balance_buy,
                 trade_date
             FROM margin_trading_detail_combined
-            WHERE trade_date = %s - INTERVAL '1 day'
+            WHERE trade_date = (SELECT d FROM latest_date) - INTERVAL '1 day'
         )
         SELECT
             t.ts_code,
@@ -107,9 +110,9 @@ class MarginWeightedIndependenceScore:
 
         try:
             with self.pg_conn.cursor() as cur:
-                cur.execute(query, (trade_date, trade_date))
+                cur.execute(query, (trade_date,))
                 results = cur.fetchall()
-                logger.info(f"Fetched {len(results)} margin records for {trade_date}")
+                logger.info(f"Fetched {len(results)} margin records for {trade_date} (T-1 fallback)")
                 return results
         except Exception as e:
             logger.error(f"Failed to fetch margin data: {e}")

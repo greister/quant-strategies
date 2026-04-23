@@ -121,7 +121,7 @@ def calc_s09(ch, date):
     cur.execute("""
     SELECT ts_code, margin_trend, short_trend
     FROM margin.stock_margin_ranking
-    WHERE trade_date = %s
+    WHERE trade_date = (SELECT MAX(trade_date) FROM margin.stock_margin_ranking WHERE trade_date <= %s)
     """, [date])
     margin_trends = {r[0]: {'margin_trend': r[1], 'short_trend': r[2]} for r in cur.fetchall()}
     cur.close()
@@ -435,7 +435,7 @@ def calc_s12(ch, date):
         margin_percentile, short_change, activity_level,
         margin_buy_amount, short_sell_volume, short_balance_volume
     FROM margin.stock_margin_ranking
-    WHERE trade_date = %s AND ts_code IN ({placeholders})
+    WHERE trade_date = (SELECT MAX(trade_date) FROM margin.stock_margin_ranking WHERE trade_date <= %s) AND ts_code IN ({placeholders})
     """, [date] + ts_codes)
     ranking_data = {}
     for r in cur.fetchall():
@@ -454,7 +454,7 @@ def calc_s12(ch, date):
     cur.execute(f"""
     SELECT ts_code, short_repay, margin_repay
     FROM margin.margin_trading_detail_combined
-    WHERE trade_date = %s AND ts_code IN ({placeholders})
+    WHERE trade_date = (SELECT MAX(trade_date) FROM margin.margin_trading_detail_combined WHERE trade_date <= %s) AND ts_code IN ({placeholders})
     """, [date] + ts_codes)
     repay_data = {r[0]: {'short_repay': r[1] or 0, 'margin_repay': r[2] or 0} for r in cur.fetchall()}
 
